@@ -172,17 +172,27 @@ class _WheelPickerState extends State<WheelPicker>
         _velocity = 0;
       },
       onPanUpdate: (details) {
-        final renderBox = context.findRenderObject() as RenderBox;
+        final RenderBox renderBox = context.findRenderObject() as RenderBox;
+        final localPosition = renderBox.globalToLocal(details.globalPosition);
         final centerX = renderBox.size.width / 2;
-        final globalX = details.globalPosition.dx;
+
         final deltaX = details.delta.dx;
         final deltaY = details.delta.dy;
 
+        final isLeftSide = localPosition.dx < centerX;
+
         final xValueChange = -deltaX * widget.scrollFactor;
-        final yValueChange =
-            deltaY != 0
-                ? (globalX < centerX ? deltaY : -deltaY) * widget.scrollFactor
-                : 0.0;
+
+        double yValueChange = 0.0;
+        if (deltaY != 0) {
+          if (isLeftSide) {
+            // Left side: up decreases, down increases
+            yValueChange = deltaY * widget.scrollFactor;
+          } else {
+            // Right side: up increases, down decreases
+            yValueChange = -deltaY * widget.scrollFactor;
+          }
+        }
 
         final valueChange =
             (deltaX != 0 && deltaY != 0)
@@ -191,29 +201,25 @@ class _WheelPickerState extends State<WheelPicker>
 
         final newValue = currentValue + valueChange;
 
-        if (newValue < widget.minValue) {
-          currentValue -= widget.overscrollFactor;
-          currentValue = currentValue.clamp(
+        if (newValue <= widget.minValue) {
+          currentValue = (currentValue - widget.overscrollFactor).clamp(
             widget.minValue - 5.0,
             widget.maxValue,
           );
-          _updateValue();
-        } else if (newValue > widget.maxValue) {
-          currentValue += widget.overscrollFactor;
-          currentValue = currentValue.clamp(
+        } else if (newValue >= widget.maxValue) {
+          currentValue = (currentValue + widget.overscrollFactor).clamp(
             widget.minValue,
             widget.maxValue + 5.0,
           );
-          _updateValue();
         } else {
           currentValue = newValue.clamp(
             widget.minValue - 5.0,
             widget.maxValue + 5.0,
           );
-          _updateValue();
         }
 
         _velocity = valueChange * 60;
+        _updateValue();
         setState(() {});
       },
       onPanEnd: (_) => _startInertia(),
